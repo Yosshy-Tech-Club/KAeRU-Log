@@ -1,92 +1,66 @@
-import express from "express";
-import http from "http";
-import { Server } from "socket.io";
-import cors from "cors";
-import { v4 as uuidv4 } from "uuid";
-import dotenv from "dotenv";
-
-dotenv.config();
-
+const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
+const { v4: uuidv4 } = require('uuid');
+const cors = require('cors');
+const helmet = require('helmet');
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+require('dotenv').config();
 
 app.use(cors());
+app.use(helmet());
 app.use(express.json());
-app.use(express.static("public"));
+app.use(express.static('public'));
 
 let messages = [];
-let clients = {};
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
-app.get("/api/messages", (req, res) => {
-  res.json(messages);
+wss.on('connection', ws => {
+    ws.send(JSON.stringify({ type: 'init', messages }));
+    ws.on('message', msg => {
+        try {
+            const data = JSON.parse(msg);
+            if (data.type === 'newMessage') {
+                const message = {
+                    id: uuidv4(),
+                    content: data.content.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+                    createdAt: Date.now()
+                };
+                messages.push(message);
+                broadcast({ type: 'newMessage', message });
+            }
+        } catch (e) {}
+    });
 });
 
-app.post("/api/setname", (req, res) => {
-  const { clientId, name } = req.body;
-  if (!clientId || !name || name.length < 1 || name.length > 24) return res.status(400).json({ error: "Invalid name" });
-  if (!clients[clientId]) clients[clientId] = {};
-  clients[clientId].name = name;
-  res.json({ ok: true });
+function broadcast(data) {
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(data));
+        }
+    });
+}
+
+app.post('/api/deleteMessage', (req, res) => {
+    const { id, secret } = req.body;
+    if (secret !== process.env.SECRET_KEY) return res.status(403).json({ success: false });
+    const index = messages.findIndex(m => m.id === id);
+    if (index !== -1) {
+        const deleted = messages.splice(index, 1)[0];
+        broadcast({ type: 'deleteMessage', id: deleted.id });
+        return res.json({ success: true });
+    }
+    res.json({ success: false });
 });
 
-app.post("/api/admin/login", (req, res) => {
-  const { password, clientId } = req.body;
-  if (!clientId || !password) return res.status(400).json({ error: "Missing fields" });
-  if (password === ADMIN_PASSWORD) {
-    if (!clients[clientId]) clients[clientId] = {};
-    clients[clientId].isAdmin = true;
-    return res.json({ ok: true });
-  }
-  return res.status(401).json({ error: "Unauthorized" });
+app.post('/api/deleteAllMessages', (req, res) => {
+    const { secret } = req.body;
+    if (secret !== process.env.SECRET_KEY) return res.status(403).json({ success: false });
+    messages = [];
+    broadcast({ type: 'deleteAllMessages' });
+    res.json({ success: true });
 });
 
-app.post("/api/messages", (req, res) => {
-  const { clientId, message } = req.body;
-  if (!clientId || !message || !clients[clientId]?.name) return res.status(400).json({ error: "Invalid" });
-  const msg = {
-    id: uuidv4(),
-    username: clients[clientId].name,
-    message,
-    time: new Date().toISOString(),
-    reactions: {}
-  };
-  messages.push(msg);
-  io.emit("newMessage", msg);
-  res.json({ ok: true });
-});
-
-app.post("/api/messages/delete", (req, res) => {
-  const { clientId, messageId } = req.body;
-  if (!clientId || !messageId) return res.status(400).json({ error: "Invalid" });
-  if (!clients[clientId]?.isAdmin) return res.status(403).json({ error: "Unauthorized" });
-  messages = messages.filter(m => m.id !== messageId);
-  io.emit("deleteMessage", messageId);
-  res.json({ ok: true });
-});
-
-app.post("/api/messages/clear", (req, res) => {
-  const { clientId } = req.body;
-  if (!clientId) return res.status(400).json({ error: "Invalid" });
-  if (!clients[clientId]?.isAdmin) return res.status(403).json({ error: "Unauthorized" });
-  messages = [];
-  io.emit("clearMessages");
-  res.json({ ok: true });
-});
-
-io.on("connection", socket => {
-  const clientId = uuidv4();
-  clients[clientId] = { socket };
-  socket.emit("clientId", clientId);
-  io.emit("userCount", Object.keys(clients).length);
-
-  socket.on("disconnect", () => {
-    delete clients[clientId];
-    io.emit("userCount", Object.keys(clients).length);
-  });
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(process.env.PORT || 3000);
