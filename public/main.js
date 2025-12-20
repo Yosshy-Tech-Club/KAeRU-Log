@@ -191,6 +191,7 @@ async function clearAllMessages() {
 		if (!res.ok) throw j;
 		showToast(j.message || '全メッセージ削除しました');
 		closeAdminModal();
+		focusInput();
 		await fetchMessages();
 	} catch {
 		showToast('削除に失敗しました');
@@ -227,7 +228,10 @@ if (el.input) {
 		focusInput();
 	});
 	if (el.adminOpen) el.adminOpen.addEventListener('click', openAdminModal);
-	if (el.adminClose) el.adminClose.addEventListener('click', closeAdminModal);
+	if (el.adminClose) el.adminClose.addEventListener('click', () => {
+		closeAdminModal();
+		focusInput();
+	});
 	if (el.clearBtn) el.clearBtn.addEventListener('click', clearAllMessages);
 	if (el.container) el.container.addEventListener('scroll', () => {
 		isAutoScroll = atBottom();
