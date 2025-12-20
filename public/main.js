@@ -8,11 +8,13 @@
 		seed = res.seed;
 		localStorage.setItem('chat_seed', seed);
 	}
+
 	let username = localStorage.getItem('chat_username') || '';
+
 	const el = {
 		messages: document.getElementById('messages'),
-		input: document.getElementById('messageInput'),
-		send: document.getElementById('sendBtn'),
+		messageInput: document.getElementById('messageInput'),
+		sendBtn: document.getElementById('sendBtn'),
 		editUserBtn: document.getElementById('editUserBtn'),
 		userModal: document.getElementById('userModal'),
 		usernameInput: document.getElementById('usernameInput'),
@@ -23,32 +25,48 @@
 		closeAdminModalBtn: document.getElementById('closeAdminModalBtn'),
 		adminPassword: document.getElementById('adminPassword'),
 		clearAllBtn: document.getElementById('clearAllBtn'),
-		userCount: document.getElementById('userCount')
+		userCount: document.getElementById('userCount'),
+		newIndicator: document.getElementById('newMsgIndicator'),
+		mainContainer: document.querySelector('.main')
 	};
 
 	let isAutoScroll = true;
-	const newMsgIndicator = document.createElement('div');
-	newMsgIndicator.id = 'newMsgIndicator';
-	newMsgIndicator.textContent = '新着メッセージ';
-	document.body.appendChild(newMsgIndicator);
-	newMsgIndicator.addEventListener('click', () => {
-		scrollToBottom();
-		newMsgIndicator.style.display = 'none';
+
+	function initials(name) {
+		if (!name) return '?';
+		return name.trim().split(/\s+/).map(s => s[0]).slice(0, 2).join('').toUpperCase();
+	}
+
+	const observer = new ResizeObserver(() => {
+		if (isAutoScroll) scrollToBottom(false);
 	});
+	observer.observe(el.messages);
 
-	const messagesContainer = document.querySelector('main');
-
-	messagesContainer.addEventListener('scroll', () => {
-		const threshold = 80;
-		const pos = messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight;
+	el.mainContainer.addEventListener('scroll', () => {
+		const threshold = 96;
+		const pos = el.mainContainer.scrollHeight - el.mainContainer.scrollTop - el.mainContainer.clientHeight;
 		isAutoScroll = pos <= threshold;
-		if (isAutoScroll) newMsgIndicator.style.display = 'none';
+		if (isAutoScroll) hideNewIndicator();
 	});
 
-	function scrollToBottom() {
-		messagesContainer.scrollTo({
-			top: messagesContainer.scrollHeight,
-			behavior: 'smooth'
+	function showNewIndicator() {
+		el.newIndicator.style.display = 'block';
+		el.newIndicator.setAttribute('aria-hidden', 'false');
+	}
+
+	function hideNewIndicator() {
+		el.newIndicator.style.display = 'none';
+		el.newIndicator.setAttribute('aria-hidden', 'true');
+	}
+	el.newIndicator.addEventListener('click', () => {
+		scrollToBottom(true);
+		hideNewIndicator();
+	});
+
+	function scrollToBottom(smooth = true) {
+		el.mainContainer.scrollTo({
+			top: el.mainContainer.scrollHeight,
+			behavior: smooth ? 'smooth' : 'auto'
 		});
 	}
 
@@ -73,8 +91,8 @@
 	el.editUserBtn.addEventListener('click', showUserModal);
 	el.closeUserModalBtn.addEventListener('click', hideUserModal);
 	el.saveUsernameBtn.addEventListener('click', async () => {
-		username = el.usernameInput.value.trim().slice(0, 24);
-		if (username === '') return;
+		const v = el.usernameInput.value.trim().slice(0, 24);
+		if (!v) return;
 		await fetch('/api/username', {
 			method: 'POST',
 			headers: {
@@ -82,12 +100,13 @@
 			},
 			body: JSON.stringify({
 				seed,
-				username
+				username: v
 			})
 		});
+		username = v;
 		localStorage.setItem('chat_username', username);
 		hideUserModal();
-		fetchMessages();
+		await fetchMessages(true);
 	});
 
 	el.openAdminBtn.addEventListener('click', showAdminModal);
@@ -105,48 +124,85 @@
 		hideAdminModal();
 	});
 
-	async function fetchMessages() {
-		const msgs = await fetch('/api/messages').then(r => r.json());
-		el.messages.innerHTML = '';
-		msgs.forEach((m, i) => {
-			const div = document.createElement('div');
-			div.className = 'msg' + (m.seed === seed ? ' self' : '');
-			const bubble = document.createElement('div');
-			bubble.className = 'bubble';
-			bubble.textContent = `[${m.time}] ${m.username}: ${m.message}`;
-			if (el.adminPassword.value) {
-				const btn = document.createElement('button');
-				btn.className = 'delete-btn';
-				btn.textContent = '×';
-				btn.addEventListener('click', async () => {
-					await fetch('/api/pass', {
-						method: 'POST',
-						headers: {
-							'Content-Type': 'application/json'
-						},
-						body: JSON.stringify({
-							password: el.adminPassword.value,
-							messageId: i
-						})
-					});
+	async function renderMessage(m, i) {
+		const wrapper = document.createElement('div');
+		wrapper.className = 'msg' + (m.seed === seed ? ' self' : '');
+		const avatar = document.createElement('div');
+		avatar.className = 'avatar';
+		avatar.textContent = initials(m.username);
+		const bubble = document.createElement('div');
+		bubble.className = 'bubble';
+		const meta = document.createElement('div');
+		meta.className = 'metaLine';
+		const nameEl = document.createElement('div');
+		nameEl.className = 'name';
+		nameEl.textContent = m.username || '匿名';
+		const timeEl = document.createElement('div');
+		timeEl.className = 'time';
+		timeEl.textContent = m.time || '';
+		meta.appendChild(nameEl);
+		meta.appendChild(timeEl);
+		const text = document.createElement('div');
+		text.className = 'text';
+		text.textContent = m.message || '';
+		bubble.appendChild(meta);
+		bubble.appendChild(text);
+		wrapper.appendChild(avatar);
+		wrapper.appendChild(bubble);
+		if (el.adminPassword.value) {
+			const del = document.createElement('button');
+			del.className = 'delete-btn';
+			del.type = 'button';
+			del.textContent = '×';
+			del.addEventListener('click', async () => {
+				await fetch('/api/pass', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({
+						password: el.adminPassword.value,
+						messageId: i
+					})
 				});
-				div.appendChild(btn);
-			}
-			div.appendChild(bubble);
-			el.messages.appendChild(div);
-		});
-		if (isAutoScroll) scrollToBottom();
-		else newMsgIndicator.style.display = 'block';
+			});
+			wrapper.appendChild(del);
+		}
+		return wrapper;
 	}
 
-	socket.on('newMessage', () => fetchMessages());
-	socket.on('clearMessages', () => fetchMessages());
-	socket.on('userCount', n => el.userCount.textContent = n);
+	async function fetchMessages(triggeredBySocket = false) {
+		const res = await fetch('/api/messages', {
+			cache: 'no-store'
+		});
+		const msgs = await res.json();
+		el.messages.innerHTML = '';
+		for (let i = 0; i < msgs.length; i++) {
+			const node = await renderMessage(msgs[i], i);
+			el.messages.appendChild(node);
+		}
+		if (isAutoScroll) scrollToBottom(!triggeredBySocket);
+		else if (!triggeredBySocket) showNewIndicator();
+	}
 
-	fetchMessages();
+	socket.on('newMessage', () => {
+		if (isAutoScroll) fetchMessages(true);
+		else {
+			fetchMessages(false);
+			showNewIndicator();
+		}
+	});
+	socket.on('clearMessages', () => {
+		fetchMessages();
+	});
+	socket.on('userCount', n => {
+		el.userCount.textContent = n;
+	});
 
-	el.send.addEventListener('click', async () => {
-		const msg = el.input.value.trim();
+	await fetchMessages();
+
+	el.sendBtn.addEventListener('click', async () => {
+		const msg = el.messageInput.value.trim();
 		if (!msg) return;
 		const time = new Date().toLocaleString();
 		await fetch('/api/messages', {
@@ -161,12 +217,21 @@
 				username
 			})
 		});
-		el.input.value = '';
+		el.messageInput.value = '';
+		await fetchMessages(true);
 	});
-	el.input.addEventListener('keydown', e => {
+
+	el.messageInput.addEventListener('keydown', e => {
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
-			el.send.click();
+			el.sendBtn.click();
+		}
+	});
+
+	window.addEventListener('beforeunload', e => {
+		if (el.messageInput.value.trim()) {
+			e.preventDefault();
+			e.returnValue = '';
 		}
 	});
 })();
