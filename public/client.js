@@ -1,62 +1,78 @@
-const ws = new WebSocket(`ws://${location.host}`);
-const messagesDiv = document.getElementById('messages');
-const form = document.getElementById('chatForm');
-const input = document.getElementById('messageInput');
-const toast = document.getElementById('toast');
-const deleteAllBtn = document.getElementById('deleteAllBtn');
+const socket = io();
+const messagesEl = document.getElementById('messages');
+const sendBtn = document.getElementById('sendBtn');
+const messageInput = document.getElementById('messageInput');
+const clearAllBtn = document.getElementById('clearAllBtn');
+const toastEl = document.getElementById('toast');
 
-function showToast(msg) {
-    toast.textContent = msg;
-    toast.style.display = 'block';
-    setTimeout(() => toast.style.display = 'none', 2000);
+const SECRET_KEY = 'your-secret-key';
+
+function showToast(msg, type='success') {
+	toastEl.textContent = msg;
+	toastEl.style.backgroundColor = type === 'success' ? 'var(--success)' : 'var(--danger)';
+	toastEl.classList.add('show');
+	setTimeout(() => toastEl.classList.remove('show'), 2000);
 }
 
-function addMessage(message) {
-    const div = document.createElement('div');
-    div.className = 'message';
-    div.id = message.id;
-    div.innerHTML = `<span>${message.content}</span><button data-id="${message.id}">削除</button>`;
-    messagesDiv.appendChild(div);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    div.querySelector('button').onclick = () => deleteMessage(message.id);
+function createMessageEl(message) {
+	const el = document.createElement('div');
+	el.className = 'msg';
+	el.id = message.id;
+	el.innerHTML = `
+		<div class="avatar">${message.user.charAt(0).toUpperCase()}</div>
+		<div class="bubble">
+			<div class="meta"><span class="name">${message.user}</span> <span>${new Date(message.time).toLocaleTimeString()}</span></div>
+			<div class="text">${message.content}</div>
+			<div class="reactions">
+				<button class="btn danger deleteBtn">削除</button>
+			</div>
+		</div>
+	`;
+	const deleteBtn = el.querySelector('.deleteBtn');
+	deleteBtn.addEventListener('click', async () => {
+		const res = await fetch('/api/deleteMessage', {
+			method: 'POST',
+			headers: {'Content-Type':'application/json'},
+			body: JSON.stringify({id: message.id, key: SECRET_KEY})
+		});
+		const data = await res.json();
+		if(data.success) showToast('メッセージ削除成功');
+		else showToast(data.message,'error');
+	});
+	return el;
 }
 
-function deleteMessage(id) {
-    fetch('/api/deleteMessage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, secret: 'supersecretkey' })
-    }).then(r => r.json()).then(res => {
-        if(res.success) showToast('削除しました');
-        else showToast('削除失敗');
-    });
-}
+socket.on('init', (msgs) => {
+	messagesEl.innerHTML = '';
+	msgs.forEach(msg => messagesEl.appendChild(createMessageEl(msg)));
+});
 
-deleteAllBtn.onclick = () => {
-    fetch('/api/deleteAllMessages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: 'supersecretkey' })
-    }).then(r => r.json()).then(res => {
-        if(res.success) showToast('全削除しました');
-        else showToast('削除失敗');
-    });
-};
+socket.on('newMessage', (msg) => {
+	messagesEl.appendChild(createMessageEl(msg));
+	messagesEl.scrollTop = messagesEl.scrollHeight;
+});
 
-form.onsubmit = e => {
-    e.preventDefault();
-    if(input.value.trim() === '') return;
-    ws.send(JSON.stringify({ type: 'newMessage', content: input.value }));
-    input.value = '';
-};
+socket.on('deleteMessage', (id) => {
+	const el = document.getElementById(id);
+	if(el) el.remove();
+});
 
-ws.onmessage = msg => {
-    const data = JSON.parse(msg.data);
-    if(data.type === 'init') data.messages.forEach(addMessage);
-    if(data.type === 'newMessage') addMessage(data.message);
-    if(data.type === 'deleteMessage') {
-        const el = document.getElementById(data.id);
-        if(el) el.remove();
-    }
-    if(data.type === 'deleteAllMessages') messagesDiv.innerHTML = '';
-};
+socket.on('deleteAllMessages', () => messagesEl.innerHTML = '');
+
+sendBtn.addEventListener('click', () => {
+	const content = messageInput.value.trim();
+	if(!content) return;
+	socket.emit('sendMessage', {user: 'User', content});
+	messageInput.value = '';
+});
+
+clearAllBtn.addEventListener('click', async () => {
+	const res = await fetch('/api/deleteAllMessages', {
+		method:'POST',
+		headers:{'Content-Type':'application/json'},
+		body: JSON.stringify({key: SECRET_KEY})
+	});
+	const data = await res.json();
+	if(data.success) showToast('全メッセージ削除成功');
+	else showToast(data.message,'error');
+});
