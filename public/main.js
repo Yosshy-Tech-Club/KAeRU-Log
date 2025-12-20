@@ -1,6 +1,7 @@
 const socket = io();
 let messages = [];
 let myName = localStorage.getItem('chat_username') || '';
+
 const el = {
 	messages: document.getElementById('messages'),
 	input: document.getElementById('messageInput'),
@@ -17,16 +18,16 @@ const el = {
 	adminClose: document.getElementById('adminClose'),
 	adminPass: document.getElementById('adminPass'),
 	clearBtn: document.getElementById('clearBtn'),
-	newMsgIndicator: document.getElementById('newMsgIndicator')
+	newMsgIndicator: document.getElementById('newMsgIndicator'),
+	connText: document.getElementById('connText'),
+	userCount: document.getElementById('userCount')
 };
+
 let isAutoScroll = true;
 
-function sanitize(text) {
-	return String(text || '');
-}
-
-function showToast(msg, ms = 1800) {
-	el.toast.textContent = msg;
+function showToast(t, ms = 1800) {
+	if (!el.toast) return;
+	el.toast.textContent = t;
 	el.toast.classList.add('show');
 	clearTimeout(showToast._t);
 	showToast._t = setTimeout(() => el.toast.classList.remove('show'), ms);
@@ -37,87 +38,96 @@ function nowTime() {
 	return d.toLocaleString();
 }
 
-function scrollToBottom(smooth) {
+function atBottom() {
+	const c = el.messages;
+	return c.scrollHeight - c.scrollTop - c.clientHeight < 80;
+}
+
+function scrollToBottom(smooth = true) {
 	el.messages.scrollTo({
 		top: el.messages.scrollHeight,
 		behavior: smooth ? 'smooth' : 'auto'
 	});
 }
 
-function atBottom() {
-	return el.messages.scrollHeight - el.messages.scrollTop - el.messages.clientHeight < 80;
+function initials(name) {
+	if (!name) return '?';
+	const s = name.trim().split(/\s+/).map(p => p[0] || '').join('').toUpperCase();
+	return s.slice(0, 2);
 }
 
 function renderMessage(msg) {
 	const wrap = document.createElement('div');
-	wrap.className = 'msg' + (msg.username === myName ? ' self' : '');
+	wrap.className = 'msg' + ((msg.username === myName) ? ' self' : '');
 	const avatar = document.createElement('div');
 	avatar.className = 'avatar';
-	avatar.textContent = msg.username.slice(0, 2).toUpperCase();
+	avatar.textContent = initials(msg.username);
 	const bubble = document.createElement('div');
 	bubble.className = 'bubble';
 	const meta = document.createElement('div');
 	meta.className = 'meta';
 	const nameEl = document.createElement('span');
 	nameEl.className = 'name';
-	nameEl.textContent = sanitize(msg.username);
+	nameEl.textContent = msg.username || '匿名';
 	const dot = document.createElement('span');
 	dot.textContent = '•';
 	dot.style.opacity = '0.6';
 	const timeEl = document.createElement('span');
-	timeEl.textContent = sanitize(msg.time);
+	timeEl.textContent = msg.time ? msg.time : '';
 	meta.append(nameEl, dot, timeEl);
 	const textEl = document.createElement('div');
 	textEl.className = 'text';
-	textEl.textContent = sanitize(msg.message);
+	textEl.textContent = msg.message || '';
 	bubble.append(meta, textEl);
 	wrap.append(avatar, bubble);
 	return wrap;
 }
-
-function renderAll() {
-	el.messages.innerHTML = '';
-	messages.forEach(m => el.messages.appendChild(renderMessage(m)));
-	if (isAutoScroll) scrollToBottom(false);
-}
 async function fetchMessages() {
 	try {
-		const res = await fetch('/api/messages');
+		const res = await fetch('/api/messages', {
+			cache: 'no-store'
+		});
+		if (!res.ok) throw 0;
 		messages = await res.json();
-		renderAll();
+		el.messages.innerHTML = '';
+		for (let i = 0; i < messages.length; i++) {
+			el.messages.appendChild(renderMessage(messages[i]));
+		}
+		if (isAutoScroll) scrollToBottom(false);
+		else el.newMsgIndicator.style.display = 'block';
 	} catch {
-		showToast('メッセージ取得失敗');
+		showToast('メッセージ取得に失敗しました');
 	}
 }
 async function sendMessage() {
-	const txt = el.input.value.trim();
-	if (!txt) {
-		return;
-	}
+	const txt = (el.input.value || '').trim();
+	if (!txt) return;
 	if (!myName) {
 		openUserModal();
 		showToast('ユーザー名を設定してください');
 		return;
 	}
 	try {
+		const payload = {
+			username: myName,
+			message: txt,
+			time: nowTime()
+		};
 		const res = await fetch('/api/messages', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
-			body: JSON.stringify({
-				username: myName,
-				message: txt
-			})
+			body: JSON.stringify(payload)
 		});
 		if (!res.ok) {
-			const j = await res.json();
+			const j = await res.json().catch(() => ({}));
 			throw j;
 		}
 		el.input.value = '';
-		fetchMessages();
+		await fetchMessages();
 	} catch {
-		showToast('送信失敗');
+		showToast('送信に失敗しました');
 	}
 }
 
@@ -133,16 +143,15 @@ function closeUserModal() {
 function openAdminModal() {
 	el.adminPass.value = '';
 	el.adminModal.classList.add('show');
-	el.adminPass.focus();
 }
 
 function closeAdminModal() {
 	el.adminModal.classList.remove('show');
 }
 async function clearAllMessages() {
-	const p = el.adminPass.value;
+	const p = el.adminPass.value || '';
 	if (!p) {
-		showToast('パスワード入力');
+		showToast('パスワードを入力してください');
 		return;
 	}
 	try {
@@ -155,13 +164,13 @@ async function clearAllMessages() {
 				password: p
 			})
 		});
-		const j = await res.json();
+		const j = await res.json().catch(() => ({}));
 		if (!res.ok) throw j;
-		showToast(j.message || '削除しました');
-		el.adminModal.classList.remove('show');
-		fetchMessages();
+		showToast(j.message || '全メッセージ削除しました');
+		closeAdminModal();
+		await fetchMessages();
 	} catch {
-		showToast('削除失敗');
+		showToast('削除に失敗しました');
 	}
 }
 el.send.addEventListener('click', sendMessage);
@@ -171,37 +180,52 @@ el.input.addEventListener('keydown', e => {
 		sendMessage();
 	}
 });
-el.userOpen.addEventListener('click', openUserModal);
-el.userCancel.addEventListener('click', closeUserModal);
-el.userSave.addEventListener('click', () => {
-	const v = el.usernameInput.value.trim();
-	if (!v || v.length > 24) {
-		showToast('1〜24文字で設定');
+if (el.userOpen) el.userOpen.addEventListener('click', openUserModal);
+if (el.userCancel) el.userCancel.addEventListener('click', closeUserModal);
+if (el.userSave) el.userSave.addEventListener('click', async () => {
+	const v = (el.usernameInput.value || '').trim().slice(0, 24);
+	if (!v) {
+		showToast('ユーザー名は1〜24文字で設定してください');
 		return;
 	}
 	myName = v;
 	localStorage.setItem('chat_username', myName);
-	el.usernameTag.textContent = myName;
+	if (el.usernameTag) el.usernameTag.textContent = myName;
 	closeUserModal();
-	showToast('保存');
+	showToast('プロフィールを保存しました');
+	await fetchMessages();
 });
-el.adminOpen.addEventListener('click', openAdminModal);
-el.adminClose.addEventListener('click', closeAdminModal);
-el.clearBtn.addEventListener('click', clearAllMessages);
+if (el.adminOpen) el.adminOpen.addEventListener('click', openAdminModal);
+if (el.adminClose) el.adminClose.addEventListener('click', closeAdminModal);
+if (el.clearBtn) el.clearBtn.addEventListener('click', clearAllMessages);
 el.messages.addEventListener('scroll', () => {
 	isAutoScroll = atBottom();
 	if (isAutoScroll) el.newMsgIndicator.style.display = 'none';
 });
+el.newMsgIndicator.addEventListener('click', () => {
+	scrollToBottom(true);
+	el.newMsgIndicator.style.display = 'none';
+});
 socket.on('connect', () => {
-	fetchMessages();
+	if (el.connText) el.connText.textContent = 'オンライン';
+});
+socket.on('disconnect', () => {
+	if (el.connText) el.connText.textContent = '切断';
 });
 socket.on('newMessage', msg => {
 	messages.push(msg);
-	renderAll();
-	if (!atBottom()) el.newMsgIndicator.style.display = 'block';
+	el.messages.appendChild(renderMessage(msg));
+	if (isAutoScroll) scrollToBottom(true);
+	else el.newMsgIndicator.style.display = 'block';
 });
 socket.on('clearMessages', () => {
 	messages = [];
-	renderAll();
+	el.messages.innerHTML = '';
 	showToast('全メッセージ削除されました');
 });
+socket.on('userCount', d => {
+	if (!d) return;
+	if (typeof d === 'number' || typeof d === 'string') el.userCount.textContent = `オンライン: ${d}`;
+	else if (typeof d === 'object' && d.userCount !== undefined) el.userCount.textContent = `オンライン: ${d.userCount}`;
+});
+fetchMessages();
