@@ -2,12 +2,22 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const crypto = require('crypto');
+const Redis = require('ioredis');
 
 try {
     require('dotenv').config();
 } catch (e) {
     console.warn('dotenv not found, using default values');
 }
+
+if (!process.env.REDIS_URL) {
+    console.error('REDIS_URL is not set');
+    process.exit(1);
+}
+
+const redis = new Redis(process.env.REDIS_URL);
+redis.on('connect', () => console.log('Redis connected'));
+redis.on('error', err => console.error('Redis error', err));
 
 const app = express();
 app.set('trust proxy', true);
@@ -20,10 +30,6 @@ app.use(express.json());
 const ADMIN_PASS = process.env.ADMIN_PASS || 'adminkey1234';
 const SECRET_KEY = process.env.SECRET_KEY || 'supersecretkey1234';
 const PORT = process.env.PORT || 3000;
-
-let messages = [];
-const lastMessageTime = new Map();
-const lastClearTime = new Map();
 
 function formatTime(date) {
     // UTCベースで9時間足してJSTに変換
@@ -60,7 +66,7 @@ function generateToken(clientId) {
     return `${clientId}.${timestamp}.${signature}`;
 }
 
-function verifyToken(token) {
+async function verifyToken(token) {
     if (!token) return null;
 
     const parts = token.split('.');
@@ -80,12 +86,24 @@ function verifyToken(token) {
     hmac.update(data);
     const expected = hmac.digest('hex');
 
-    return expected === signature ? clientId : null;
+    if (expected !== signature) return null;
+    const stored = await redis.get(`token:${clientId}`);
+    if (stored !== token) return null;
+    return clientId;
 }
 
-app.get('/api/messages', (req, res) => res.json(messages));
+app.get('/api/messages', async (req, res) => {
+    try {
+        const raw = await redis.lrange('messages', 0, -1);
+        const messages = raw.map(JSON.parse);
+        res.json(messages);
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: 'Redis error' });
+    }
+});
 
-app.post('/api/messages', (req, res) => {
+app.post('/api/messages', async (req, res) => {
     const { username, message, token } = req.body;
     if (!username || !message || !token) return res.status(400).json({ error: 'Invalid data' });
     if (typeof username !== 'string' || username.length === 0 || username.length > 24)
@@ -93,13 +111,17 @@ app.post('/api/messages', (req, res) => {
     if (typeof message !== 'string' || message.length === 0 || message.length > 800)
         return res.status(400).json({ error: 'Message length invalid' });
 
-    const clientId = verifyToken(token);
+    const clientId = await verifyToken(token);
     if (!clientId) return res.status(403).json({ error: 'Invalid token' });
 
     const now = Date.now();
-    const lastTime = lastMessageTime.get(clientId) || 0;
-    if (now - lastTime < 1000) return res.status(429).json({ error: '送信には1秒以上間隔をあけてください' });
-    lastMessageTime.set(clientId, now);
+    const rateKey = `ratelimit:msg:${clientId}`;
+
+    const last = await redis.get(rateKey);
+    if (last && now - Number(last) < 1000) {
+        return res.status(429).json({ error: '送信には1秒以上間隔をあけてください' });
+    }
+    await redis.set(rateKey, now, 'PX', 2000);
 
     const msg = { 
         username, 
@@ -107,33 +129,64 @@ app.post('/api/messages', (req, res) => {
         time: formatTime(new Date()), 
         clientId 
     };
-    messages.push(msg);
-    if (messages.length > 100) messages.shift();
-    io.emit('newMessage', msg);
-    res.json({ ok: true });
+    try {
+        await redis.rpush('messages', JSON.stringify(msg));
+        await redis.ltrim('messages', -100, -1);
+
+        io.emit('newMessage', msg);
+        res.json({ ok: true });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: 'Redis error' });
+    }
 });
 
-app.post('/api/clear', (req, res) => {
+app.post('/api/clear', async (req, res) => {
     const { password } = req.body;
     const ip = req.ip;
     if (password !== ADMIN_PASS) return res.status(403).json({ error: 'Unauthorized' });
 
     const now = Date.now();
-    const lastTime = lastClearTime.get(ip) || 0;
-    if (now - lastTime < 30000) return res.status(429).json({ error: '削除には30秒以上間隔をあけてください' });
-    lastClearTime.set(ip, now);
+    const clearKey = `ratelimit:clear:${ip}`;
 
-    messages = [];
-    io.emit('clearMessages');
-    res.json({ message: '全メッセージ削除しました' });
+    const last = await redis.get(clearKey);
+    if (last && now - Number(last) < 30000) {
+        return res.status(429).json({ error: '削除には30秒以上間隔をあけてください' });
+    }
+    await redis.set(clearKey, now, 'PX', 60000);
+
+    try {
+        await redis.del('messages');
+        io.emit('clearMessages');
+        res.json({ message: '全メッセージ削除しました' });
+    } catch (e) {
+        console.error('Redis clear failed', e);
+        res.status(500).json({ error: 'Redis error' });
+    }
 });
 
-io.on('connection', socket => {
+io.on('connection', async socket => {
     const clientId = crypto.randomUUID();
     const token = generateToken(clientId);
+
+    await redis.set(
+        `token:${clientId}`,
+        token,
+        'PX',
+        5 * 60 * 1000
+    );
+
     socket.emit('assignToken', token);
-    io.emit('userCount', io.engine.clientsCount);
-    socket.on('disconnect', () => io.emit('userCount', io.engine.clientsCount));
+
+    await redis.incr('connections');
+    const count = await redis.get('connections');
+    io.emit('userCount', Number(count));
+
+    socket.on('disconnect', async () => {
+        await redis.decr('connections');
+        const count = await redis.get('connections');
+        io.emit('userCount', Number(count));
+    });
 });
 
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
