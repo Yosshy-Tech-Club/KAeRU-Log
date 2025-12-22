@@ -89,6 +89,7 @@ function focusInput(elm = el.input) {
 		elm.value = val;
 	}
 }
+
 function renderMessage(msg) {
 	const isSelf = msg.seed === mySeed;
 	const wrap = document.createElement('div');
@@ -151,7 +152,7 @@ async function sendMessage() {
 			username: myName,
 			message: txt,
 			token: myToken,
-			seed: mySeed 
+			seed: mySeed
 		};
 		const res = await fetch(`${SERVER_URL}/api/messages`, {
 			method: 'POST',
@@ -160,7 +161,11 @@ async function sendMessage() {
 			},
 			body: JSON.stringify(payload)
 		});
-		if (!res.ok) throw await res.json().catch(() => ({}));
+		const data = await res.json().catch(() => ({}));
+		if (!res.ok) {
+			showToast(data.error || '送信に失敗しました');
+			return;
+		}
 		if (el.input) el.input.value = '';
 		await fetchMessages();
 	} catch {
@@ -286,9 +291,9 @@ socket.on('clearMessages', () => {
 socket.on('notify', data => {
 	if (!data) return;
 	const msg =
-		typeof data === 'string'
-			? data
-			: data.message;
+		typeof data === 'string' ?
+		data :
+		data.message;
 	if (!msg) return;
 	showToast(msg);
 });
