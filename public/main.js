@@ -210,8 +210,9 @@ async function clearAllMessages() {
 			})
 		});
 		const j = await res.json().catch(() => ({}));
+		const data = await res.json().catch(() => ({}));
 		if (!res.ok) {
-			showToast(j.error || '削除に失敗しました');
+			showToast(data.error || '削除に失敗しました');
 			return;
 		}
 		closeAdminModal();
