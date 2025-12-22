@@ -210,8 +210,10 @@ async function clearAllMessages() {
 			})
 		});
 		const j = await res.json().catch(() => ({}));
-		if (!res.ok) throw j;
-		showToast(j.message || '全メッセージ削除しました');
+		if (!res.ok) {
+			showToast(j.error || '削除に失敗しました');
+			return;
+		}
 		closeAdminModal();
 		focusInput();
 		await fetchMessages();
