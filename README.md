@@ -19,6 +19,6 @@
 
 [デモサイト](https://server-chat-suan.onrender.com/)
 
-## フィードバック
+## バグの報告
 
-ご意見やご質問がある場合は、*Yosshy_123@proton.me* までご連絡ください。
+バグを発見された場合は、*Yosshy_123@proton.me* までご連絡ください。
