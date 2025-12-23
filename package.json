@@ -1,5 +1,5 @@
 {
-  "name": "HARO-Chat",
+  "name": "KAeRU Log",
   "version": "1.0.0",
   "description": "WebSocket-Chat-App with Redis",
   "main": "server.js",
