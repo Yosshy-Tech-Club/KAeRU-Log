@@ -61,7 +61,8 @@ header.appbar {
 	width: 28px;
 	height: 28px;
 	border-radius: 10px;
-	background: conic-gradient(from 210deg, var(--accent), var(--success), var(--accent));
+	object-fit: cover;
+	display: block;
 }
 
 .title {
@@ -414,6 +415,13 @@ textarea {
 
 	header.appbar {
 		padding: 10px 12px;
+	}
+
+	.logo {
+		width: 28px;
+		height: 28px;
+		border-radius: 8px;
+		object-fit: cover;
 	}
 
 	.title {
