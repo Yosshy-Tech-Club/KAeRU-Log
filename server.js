@@ -284,15 +284,18 @@ io.on('connection', async socket => {
     });
 });
 
-resetTokensIfMonthChanged()
-
 app.get('*', (req, res) => {
     res.sendFile(__dirname + '/public/index.html');
 });
 
-    .catch(err => console.error('Token reset failed', err))
-    .finally(() => {
-        server.listen(PORT, () =>
-            console.log(`Server running on port ${PORT}`)
-        );
-    });
+(async () => {
+  try {
+    await resetTokensIfMonthChanged();
+  } catch (err) {
+    console.error('Token reset failed', err);
+  } finally {
+    server.listen(PORT, () =>
+      console.log(`Server running on port ${PORT}`)
+    );
+  }
+})();
