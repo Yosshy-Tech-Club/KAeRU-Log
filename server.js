@@ -40,7 +40,7 @@ async function resetTokensIfMonthChanged() {
         console.log('[Token] Month changed, clearing all tokens');
 
         const stream = redis.scanStream({
-            match: 'token:*',
+            match: 'token:[0-9a-f-]*',
             count: 100
         });
 
@@ -232,15 +232,33 @@ app.post('/api/clear', async (req, res) => {
     }
 });
 
-io.on('connection', async socket => {
+io.on('connection', socket => {
+    socket.on('authenticate', async ({ token }) => {
+        let clientId = token ? await verifyToken(token) : null;
+        let assignedToken = null;
+
+        if (!clientId) {
+            clientId = crypto.randomUUID();
+            assignedToken = generateToken(clientId);
+            await redis.set(`token:${clientId}`, assignedToken, 'EX', 60 * 60 * 24);
+        }
+
+        socket.data = socket.data || {};
+        socket.data.clientId = clientId;
+
+        if (assignedToken) {
+            socket.emit('assignToken', assignedToken);
+        }
+        socket.emit('authenticated');
+    });
+
     socket.on('joinRoom', ({ roomId }) => {
-        if (!socket.data.clientId) {
+        if (!socket.data?.clientId) {
             socket.emit('authRequired');
             return;
         }
 
-        if (!roomId) return;
-        if (!/^[a-zA-Z0-9_-]{1,32}$/.test(roomId)) return;
+        if (!roomId || !/^[a-zA-Z0-9_-]{1,32}$/.test(roomId)) return;
 
         if (socket.data.roomId) {
             socket.leave(socket.data.roomId);
@@ -255,30 +273,10 @@ io.on('connection', async socket => {
         socket.emit('joinedRoom', { roomId });
     });
 
-    await resetTokensIfMonthChanged();
-
-    const clientId = crypto.randomUUID();
-    const token = generateToken(clientId);
-
-    await redis.set(`token:${clientId}`, token);
-
-    socket.emit('assignToken', token);
-
-    socket.on('authenticate', async ({ token }) => {
-        const verifiedId = await verifyToken(token);
-        if (!verifiedId) {
-            socket.emit('authFailed', { error: 'Invalid or expired token' });
-            return;
-        }
-        socket.data = socket.data || {};
-        socket.data.clientId = verifiedId;
-		socket.emit('authenticated');
-	});
     socket.on('disconnecting', () => {
-        const roomId = socket.data.roomId;
+        const roomId = socket.data?.roomId;
         if (roomId) {
-            const roomSize =
-                (io.sockets.adapter.rooms.get(roomId)?.size || 1) - 1;
+            const roomSize = (io.sockets.adapter.rooms.get(roomId)?.size || 1) - 1;
             io.to(roomId).emit('roomUserCount', roomSize);
         }
     });
