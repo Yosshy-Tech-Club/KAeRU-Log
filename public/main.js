@@ -2,11 +2,11 @@ const SERVER_URL = window.location.origin.replace(/\/$/, ''); // サーバーの
 const path = location.pathname.split('/').filter(Boolean);
 let roomId = path[1] || 'open';
 if (!/^[a-zA-Z0-9_-]{1,32}$/.test(roomId)) {
-    roomId = 'open';
-    location.replace('/room/open');
+	roomId = 'open';
+	location.replace('/room/open');
 }
 if (path[0] !== 'room' || !roomId) {
-    location.replace('/room/open');
+	location.replace('/room/open');
 }
 const socket = io(SERVER_URL);
 let messages = [];
@@ -132,8 +132,9 @@ function renderMessage(msg) {
 async function fetchMessages() {
 	try {
 		const res = await fetch(
-			`${SERVER_URL}/api/messages/${encodeURIComponent(roomId)}`,
-			{ cache: 'no-store' }
+			`${SERVER_URL}/api/messages/${encodeURIComponent(roomId)}`, {
+				cache: 'no-store'
+			}
 		);
 		if (!res.ok) throw 0;
 		messages = await res.json();
@@ -173,7 +174,9 @@ async function sendMessage() {
 	try {
 		const res = await fetch(`${SERVER_URL}/api/messages`, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
+			headers: {
+				'Content-Type': 'application/json'
+			},
 			body: JSON.stringify(payload)
 		});
 
@@ -297,7 +300,9 @@ async function sendTokenToSocket() {
 }
 
 function joinRoom() {
-	socket.emit('joinRoom', { roomId });
+	socket.emit('joinRoom', {
+		roomId
+	});
 }
 
 socket.on('connect', async () => {
@@ -364,34 +369,30 @@ socket.on('joinedRoom', () => {
 });
 
 function switchRoom(newRoom) {
-  if (!newRoom || !/^[a-zA-Z0-9_-]{1,32}$/.test(newRoom)) {
-    showToast('ルーム名は半角英数字または一部記号32文字以内で指定してください');
-    return;
-  }
+	if (!newRoom || !/^[a-zA-Z0-9_-]{1,32}$/.test(newRoom)) {
+		showToast('ルーム名は英数字・一部記号32文字以内で指定してください');
+		return;
+	}
 
-  if (newRoom === roomId) return;
+	if (newRoom === roomId) return;
 
-  roomId = newRoom;
-  messages = [];
-  if (el.messages) el.messages.innerHTML = '';
-
-  joinRoom();
-  fetchMessages();
-  showToast(`ルーム "${roomId}" に入室しました`);
+	location.href = `/room/${encodeURIComponent(newRoom)}`;
 }
 
-if (joinRoomBtn) {
-  joinRoomBtn.addEventListener('click', () => {
-    const newRoom = roomInput.value.trim();
-    switchRoom(newRoom);
-  });
+if (el.joinRoomBtn) {
+	el.joinRoomBtn.addEventListener('click', () => {
+		const newRoom = el.roomInput.value.trim();
+		switchRoom(newRoom);
+	});
 }
 
-if (roomInput) {
-  roomInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      joinRoomBtn.click();
-    }
-  });
+if (el.roomInput) {
+	el.roomInput.addEventListener('keydown', e => {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			if (el.joinRoomBtn) el.joinRoomBtn.click();
+		}
+	});
+
+	el.roomInput.value = roomId;
 }
