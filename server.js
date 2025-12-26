@@ -163,13 +163,7 @@ app.post('/api/messages', async (req, res) => {
 
     const muteKey = `msg:mute:${clientId}`;
     if (await redis.exists(muteKey)) {
-        io.to(clientId).emit('notify', {
-            message: '連続送信のため20秒間ミュートされています',
-            type: 'warning'
-        });
-        return res.status(429).json({
-            error: '連続送信のため20秒間ミュートされています'
-        });
+        return res.status(429).json({ error: true });
     }
 
     const now = Date.now();
@@ -194,20 +188,18 @@ app.post('/api/messages', async (req, res) => {
                 await redis.del(lastIntervalKey);
 
                 io.to(clientId).emit('notify', {
-                    message: '同一間隔の連続送信により20秒間ミュートされました',
+                    message: '連続送信のため20秒間ミュートされました',
                     type: 'warning'
                 });
 
-                return res.status(429).json({
-                    error: '同一間隔の連続送信により20秒間ミュートされました'
-                });
+                return res.status(429).json({ error: true });
             }
         } else {
-            await redis.set(sameCountKey, 1, 'EX', 30);
+            await redis.set(sameCountKey, 0, 'EX', 30);
             await redis.set(lastIntervalKey, interval, 'EX', 30);
         }
     } else {
-        await redis.set(sameCountKey, 1, 'EX', 30);
+        await redis.set(sameCountKey, 0, 'EX', 30);
     }
 
     await redis.set(lastTsKey, now, 'EX', 30);
