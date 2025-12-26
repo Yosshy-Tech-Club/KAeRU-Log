@@ -1,4 +1,4 @@
-# KAeRU Log
+# KAeRU Log - fork
 
 KAeRU Log は、Node.js を使って構築した軽量チャットアプリです。  
 
