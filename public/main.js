@@ -307,22 +307,18 @@
 		});
 	}
 
-	socket.on('connect', async () => {
-		if (el.connText) el.connText.textContent = 'オンライン';
-		if (el.connDot) {
-			el.connDot.classList.remove('offline');
-			el.connDot.classList.add('online');
-		}
-		if (myToken) {
-			sendTokenToSocket();
-		}
-	});
+    socket.on('connect', () => {
+	    if (el.connText) el.connText.textContent = 'オンライン';
+	    if (el.connDot) {
+		    el.connDot.classList.remove('offline');
+		    el.connDot.classList.add('online');
+	    }
+	     socket.emit('authenticate', { token: myToken || '' });
+    });
 
-	socket.on('reconnect', async () => {
-		if (myToken) {
-			sendTokenToSocket();
-		}
-	});
+    socket.on('reconnect', () => {
+    	socket.emit('authenticate', { token: myToken || '' });
+    });
 
 	socket.on('disconnect', () => {
 		if (el.connText) el.connText.textContent = '切断';
