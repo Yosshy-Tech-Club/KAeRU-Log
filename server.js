@@ -241,9 +241,9 @@ app.post('/api/clear', async (req, res) => {
 
 io.on('connection', socket => {
     socket.on('authenticate', async ({ token }) => {
-        let clientId = token ? await verifyToken(token, socket.handshake.address) : null;
+		const clientIp = socket.handshake.address.replace('::ffff:', '');
+        let clientId = token ? await verifyToken(token, clientIp) : null;
         let assignedToken = null;
-        const clientIp = socket.handshake.address;
 
         if (!clientId) {
             clientId = crypto.randomUUID();
