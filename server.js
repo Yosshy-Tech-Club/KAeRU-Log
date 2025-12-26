@@ -230,25 +230,31 @@ app.post('/api/clear', async (req, res) => {
 
 io.on('connection', socket => {
     socket.on('authenticate', async ({ token }) => {
+        const now = Date.now();
+        const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0]?.trim() || socket.handshake.address;
+
         let clientId = token ? await verifyToken(token) : null;
         let assignedToken = null;
 
         socket.data = socket.data || {};
-        const now = Date.now();
 
         if (!clientId) {
-            if (!socket.data.lastReissue || now - socket.data.lastReissue > 5000) {
-                clientId = crypto.randomUUID();
-                assignedToken = generateToken(clientId);
-                await redis.set(`token:${clientId}`, assignedToken, 'EX', 60 * 60 * 24);
-                socket.data.lastReissue = now;
-                socket.data.clientId = clientId;
+            const reissueKey = `ratelimit:reissue:${ip}`;
+            const last = await redis.get(reissueKey);
 
-                socket.emit('assignToken', assignedToken);
-            } else {
+            if (last && now - Number(last) < 30000) {
                 socket.emit('authRequired');
                 return;
             }
+
+            clientId = crypto.randomUUID();
+            assignedToken = generateToken(clientId);
+
+            await redis.set(`token:${clientId}`, assignedToken, 'EX', 60 * 60 * 24);
+            await redis.set(reissueKey, now, 'PX', 30000);
+
+            socket.data.clientId = clientId;
+            socket.emit('assignToken', assignedToken);
         } else {
             socket.data.clientId = clientId;
         }
