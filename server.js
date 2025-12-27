@@ -255,7 +255,7 @@ app.post('/api/clear', async (req, res) => {
 	const { password, roomId } = req.body;
 	const requesterIp = req.ip;
 
-	if (password !== ADMIN_PASSWORD) {
+	if (password !== ADMIN_PASS) {
 		return res.status(403).json({ error: 'Unauthorized' });
 	}
 
