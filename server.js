@@ -252,15 +252,19 @@ app.post('/api/messages', async (req, res) => {
 });
 
 app.post('/api/clear', async (req, res) => {
-	const { password, roomId } = req.body;
-	const requesterIp = req.ip;
+	const { password, roomId, token } = req.body;
 
 	if (password !== ADMIN_PASS) {
 		return res.status(403).json({ error: 'Unauthorized' });
 	}
 
+    const clientId = await validateAuthToken(token);
+    if (!clientId) {
+      return res.status(403).json({ error: 'Invalid token' });
+    }
+
 	const now = Date.now();
-	const rateKey = `ratelimit:clear:${requesterIp}`;
+	const rateKey = `ratelimit:clear:${clientId}`;
 	const last = await redisClient.get(rateKey);
 
 	if (last && now - Number(last) < 30000) {
