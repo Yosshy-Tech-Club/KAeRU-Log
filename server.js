@@ -319,12 +319,14 @@ app.post('/api/clear', async function (req, res) {
         if (!/^[a-zA-Z0-9_-]{1,32}$/.test(roomId)) {
             return res.status(400).json({ error: 'invalid roomId' });
         }
-
+        const username = (await redisClient.get(`username:${clientId}`)) || 'unknown';
         await redisClient.del(`messages:${roomId}`);
         io.to(roomId).emit('clearMessages');
         sendNotification(io.to(roomId), '全メッセージ削除されました', 'warning');
-        logUserAction(clientId, 'clearMessages', { roomId: roomId });
-
+        logUserAction(clientId, 'clearMessages', {
+            roomId: roomId,
+            username: username
+        });
         res.json({ message: '全メッセージ削除しました' });
     } catch (err) {
         console.error('Redis clear failed', err);
