@@ -68,7 +68,7 @@ const PORT = process.env.PORT || 3000;
 /* ---------------- ログ ---------------- */
 
 function logUserAction(clientId, action, extra = {}) {
-    const time = formatJSTTime(new Date());
+    const time = formatJSTTimeLog(new Date());
     const username = extra.username ? ` [Username:${extra.username}]` : '';
     const info = { ...extra };
     delete info.username;
@@ -94,6 +94,21 @@ function formatJSTTime(date) {
     const min = String(jst.getUTCMinutes()).padStart(2, '0');
 
     return `${yyyy}/${mm}/${dd} ${hh}:${min}`;
+}
+
+/* ---------------- ログ用JST表示用時刻フォーマット ---------------- */
+
+function formatJSTTimeLog(date) {
+    const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+
+    const yyyy = jst.getUTCFullYear();
+    const mm = String(jst.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(jst.getUTCDate()).padStart(2, '0');
+    const hh = String(jst.getUTCHours()).padStart(2, '0');
+    const min = String(jst.getUTCMinutes()).padStart(2, '0');
+    const ss = String(jst.getUTCSeconds()).padStart(2, '0');
+
+    return `${yyyy}/${mm}/${dd} ${hh}:${min}:${ss}`;
 }
 
 /* ---------------- 認証トークン生成 ---------------- */
