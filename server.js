@@ -11,8 +11,8 @@ try {
 }
 
 /*
- Render でデプロイするため Redis を使用
- .env に REDIS_URL を必ず定義すること
+  Render でデプロイするため Redis を使用
+  .env に REDIS_URL を必ず定義すること
 */
 if (!process.env.REDIS_URL) {
 	console.error('REDIS_URL is not set');
@@ -23,9 +23,9 @@ const redisClient = new Redis(process.env.REDIS_URL);
 redisClient.on('connect', () => console.log('Redis connected'));
 redisClient.on('error', err => console.error('Redis error', err));
 
-/**
- * 月が変わったら Redis を全リセット
- */
+/*
+  月が変わったら Redis を全リセット
+*/
 async function resetRedisIfMonthChanged() {
 	const now = new Date();
 	const currentMonth =
@@ -65,16 +65,16 @@ const ADMIN_PASS = process.env.ADMIN_PASS || 'adminkey1234';
 const SECRET_KEY = process.env.SECRET_KEY || 'supersecretkey1234';
 const PORT = process.env.PORT || 3000;
 
-/**
- * クライアントへ通知送信
- */
+/*
+  クライアントへ通知送信
+*/
 function sendNotification(target, message, type = 'info') {
 	target.emit('notify', { message, type });
 }
 
-/**
- * JST 表示用 時刻フォーマット
- */
+/*
+  JST 表示用 時刻フォーマット
+*/
 function formatJSTTime(date) {
 	const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
 
@@ -87,9 +87,9 @@ function formatJSTTime(date) {
 	return `${yyyy}/${mm}/${dd} ${hh}:${min}`;
 }
 
-/**
- * 認証トークン生成
- */
+/*
+  認証トークン生成
+*/
 function createAuthToken(clientId) {
 	const timestamp = Date.now();
 	const data = `${clientId}.${timestamp}`;
@@ -101,9 +101,9 @@ function createAuthToken(clientId) {
 	return `${clientId}.${timestamp}.${signature}`;
 }
 
-/**
- * トークン検証
- */
+/*
+  トークン検証
+*/
 async function validateAuthToken(token) {
 	if (!token) return null;
 
@@ -127,9 +127,9 @@ async function validateAuthToken(token) {
 	return clientId;
 }
 
-/**
- * HTMLエスケープ
- */
+/*
+  HTMLエスケープ
+*/
 function escapeHTML(str) {
   if (!str) return '';
   return str
