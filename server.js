@@ -127,6 +127,19 @@ async function validateAuthToken(token) {
 	return clientId;
 }
 
+/**
+ * HTMLエスケープ
+ */
+function escapeHTML(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 /* ---------------- API ---------------- */
 
 app.get('/api/messages/:roomId', async (req, res) => {
@@ -224,8 +237,8 @@ app.post('/api/messages', async (req, res) => {
 	await redisClient.set(rateLimitKey, now, 'PX', 2000);
 
 	const storedMessage = {
-		username,
-		message,
+		username: escapeHTML(username),
+		message: escapeHTML(message),
 		time: formatJSTTime(new Date()),
 		clientId,
 		seed
@@ -238,8 +251,8 @@ app.post('/api/messages', async (req, res) => {
 		await redisClient.ltrim(roomKey, -100, -1);
 
 		io.to(roomId).emit('newMessage', {
-			username,
-			message,
+			username: storedMessage.username,
+			message: storedMessage.message,
 			time: storedMessage.time,
 			seed
 		});
