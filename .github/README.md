@@ -85,7 +85,7 @@ You can see a demo of the application's functionality here:
 
 You can read an introductory article about KAeRU Log here:
 
-[https://qiita.com/Yosshy_123/items/fa7289905f2fca60e450](https://qiita.com/Yosshy_123/items/fa7289905f2fca60e450)
+[https://qiita.com/Yosshy_123/items/fcb7b4115145975f77ff](https://qiita.com/Yosshy_123/items/fcb7b4115145975f77ff)
 
 ---
 
