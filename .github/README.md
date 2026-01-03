@@ -77,7 +77,7 @@ node server.js
 
 You can see a demo of the application's functionality here:
 
-[https://kaeru-log.onrender.com](https://kaeru-log.onrender.com)
+[https://kaeru-log.yosshy-123.workers.dev/](https://kaeru-log.yosshy-123.workers.dev/)
 
 ---
 
