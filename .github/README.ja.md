@@ -103,7 +103,7 @@ WORKER_SECRET=<アプリ本体と同じ WORKER_SECRET>
 
 3. デプロイ  
 
-### アクセス
+### 3. アクセス
 
 Cloudflare Workers の URL からアクセスしてください。
 
