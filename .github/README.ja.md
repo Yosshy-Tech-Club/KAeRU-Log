@@ -5,6 +5,8 @@
 ---
 
 KAeRU Log は、Node.js を使って構築した軽量チャットアプリです。  
+このアプリは **必ず Cloudflare Workers を経由してアクセスする** 運用を前提としています。  
+実際のサーバーは Render や Koyeb などでホストされ、Workers がリバースプロキシとして機能します。
 
 ---
 
@@ -35,50 +37,57 @@ KAeRU Log は、Node.js を使って構築した軽量チャットアプリで�
 
 ## 動作環境とセットアップ
 
-Node.js (v22 以上推奨) がインストールされた環境で動作します。
+Node.js (v22 以上推奨) がインストールされた環境で動作します。  
 
-### 1. リポジトリをクローン
-```bash
-git clone https://github.com/Yosshy-123/KAeRU-Log.git
-cd KAeRU-Log
-```
+本アプリは以下の構成で運用されます：
 
-### 2. 依存パッケージをインストール
+1. **アプリ本体**：Render/Koyeb 等で Node.js サーバーを稼働  
+2. **Cloudflare Workers**：`src/worker.js` を使ってリクエストを必ず経由  
 
-```bash
-npm install
-```
+### 1. アプリ本体をデプロイ
 
-### 3. 環境変数を設定
+Render や Koyeb などのホスティングサービスで、リポジトリをデプロイします。  
+環境変数 `.env` を設定してください：
 
-プロジェクトルートに `.env` を作成し、以下を記述します：
-
-```env
+```.env
 REDIS_URL=redis://<ホスト>:<ポート>
 
 # 任意（推奨）
 ADMIN_PASS=<管理者パスワード>
 SECRET_KEY=<トークン用シークレットキー>
-WORKER_SECRET=<worker.jsと同一のシークレットキー>
+WORKER_SECRET=<worker.js と同一のシークレットキー>
 ```
 
-`REDIS_URL` は **必ず定義して** ください。
+- `REDIS_URL` は **必ず定義**  
+- `WORKER_SECRET` は Cloudflare Workers との認証用です  
+
+アプリ本体の URL は、後で Workers の `TARGET_URL` として指定します。
 
 ---
 
-## 起動方法
+### 2. Cloudflare Workers 側の設定
 
-.env の設定を行った上で以下の方法でサーバー起動してください。
+1. `src/worker.js` を使用します。
+2. `TARGET_URL` と `WORKER_SECRET` を Cloudflare 環境変数に設定：
+
+```.env
+TARGET_URL=<Render/Koyeb 上のアプリ URL>
+WORKER_SECRET=<.env と同一のキー>
+```
+
+3. `wrangler` で Workers をデプロイ：
 
 ```bash
-node server.js
+wrangler publish
 ```
+
+これにより、アプリ本体にアクセスするすべてのリクエストは Workers を経由するようになります。
 
 ---
 
-## デモ
+## アクセス
 
-アプリの動作デモはこちらからご覧いただけます。
+Cloudflare Workers 経由の URL でアクセスしてください：
 
 [https://kaeru-log.yosshy-123.workers.dev/](https://kaeru-log.yosshy-123.workers.dev/)
 
@@ -86,7 +95,7 @@ node server.js
 
 ## 記事
 
-KAeRU Logの紹介記事はこちらからご覧いただけます。
+KAeRU Log の紹介記事はこちら：
 
 [https://qiita.com/Yosshy_123/items/fa7289905f2fca60e450](https://qiita.com/Yosshy_123/items/fa7289905f2fca60e450)
 
@@ -100,7 +109,7 @@ KAeRU Logの紹介記事はこちらからご覧いただけます。
 
 ## ライセンス
 
-このプロジェクトは **MIT ライセンス** のもとで公開されています。
+このプロジェクトは **MIT ライセンス** です。
 
 ---
 
