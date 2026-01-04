@@ -59,7 +59,7 @@ REDIS_URL=redis://<ホスト>:<ポート>
 # 任意（推奨）
 ADMIN_PASS=<管理者パスワード>
 SECRET_KEY=<トークン用シークレットキー>
-WORKER_SECRET=<Worker.jsと同一のシークレットキー>
+WORKER_SECRET=<worker.jsと同一のシークレットキー>
 ```
 
 `REDIS_URL` は **必ず定義して** ください。
