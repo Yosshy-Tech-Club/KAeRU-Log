@@ -37,36 +37,6 @@ KAeRU Log は、Node.js を使って構築した軽量チャットアプリで�
 
 ---
 
-## 動作環境とセットアップ
-
-Node.js (v22 以上推奨) がインストールされた環境で動作します。
-
-### 1. リポジトリをクローン
-
-```bash
-git clone https://github.com/Yosshy-123/KAeRU-Log.git
-cd KAeRU-Log
-```
-
-### 2. 依存パッケージをインストール
-
-```bash
-npm install
-```
-
-### 3. 環境変数を設定
-
-プロジェクトルートに `.env` を作成し、以下を記述します：
-
-```env
-REDIS_URL=redis://<ホスト>:<ポート>
-ADMIN_PASS=<管理者パスワード>
-SECRET_KEY=<トークン用シークレットキー>
-WORKER_SECRET=<worker.js と同一のキー>
-```
-
----
-
 ## デプロイ
 
 ### 1. アプリ本体をデプロイ
@@ -78,9 +48,27 @@ Render または Koyeb を使用してアプリ本体をデプロイします。
 1. Render ダッシュボードで **New → Web Service** を選択  
 2. GitHub リポジトリとして `KAeRU-Log` を選択  
 3. **Environment** を Node (v22+) に設定  
-4. **Build Command** に `npm install` に設定
-5. **Start Command** に `node server.js` に設定
-6. 環境変数を設定 (上記の `.env` の内容と同じ)  
+4. **Build Command** を設定
+
+```bash
+npm install
+```
+
+5. **Start Command** を設定
+
+```bash
+node server.js
+```
+
+6. 環境変数を設定
+
+```env
+REDIS_URL=redis://<ホスト>:<ポート>
+ADMIN_PASS=<管理者パスワード>
+SECRET_KEY=<トークン用シークレットキー>
+WORKER_SECRET=<worker.js と同一のキー>
+```
+
 7. デプロイ完了後、URL を控えておく
 
 #### Koyeb の場合
@@ -94,7 +82,7 @@ Render または Koyeb を使用してアプリ本体をデプロイします。
 ### 2. Cloudflare Workers を設定
 
 1. `src/worker.js` をそのまま使用  
-2. Workers 環境変数を設定：
+2. Workers 環境変数を設定
 
 ```env
 TARGET_URL=<Render/Koyeb のアプリ本体 URL>
